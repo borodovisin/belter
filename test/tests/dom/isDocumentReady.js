@@ -1,6 +1,6 @@
 /* @flow */
 
-import { isDocumentReady } from '../../../src/dom';
+import { isDocumentReady } from '../../../src';
 
 describe('isDocumentReady cases', () => {
     const oldState = document.readyState;

@@ -1,7 +1,7 @@
 
 /* @flow */
 
-import { isRegex } from '../../../src/util';
+import { isRegex } from '../../../src';
 
 describe('isRegex', () => {
     it('should return true when item is a regex', () => {

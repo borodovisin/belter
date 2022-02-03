@@ -5,261 +5,23 @@
 import { ZalgoPromise } from 'zalgo-promise/src';
 import { WeakMap } from 'cross-domain-safe-weakmap/src';
 
+import { setFunctionName, getFunctionName } from './functions';
 import type { CancelableType } from './types';
-
-export function getFunctionName <T : Function>(fn : T) : string {
-    return fn.name || fn.__name__ || fn.displayName || 'anonymous';
-}
-
-export function setFunctionName <T : Function>(fn : T, name : string) : T {
-    try {
-        delete fn.name;
-        fn.name = name;
-    } catch (err) {
-        // pass
-    }
-
-    fn.__name__ = fn.displayName = name;
-    return fn;
-}
-
-export function base64encode(str : string) : string {
-    if (typeof btoa === 'function') {
-        return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => {
-            return String.fromCharCode(parseInt(p1, 16));
-        })).replace(/[=]/g, '');
-    }
-
-    if (typeof Buffer !== 'undefined') {
-        return Buffer.from(str, 'utf8').toString('base64').replace(/[=]/g, '');
-    }
-
-    throw new Error(`Can not find window.btoa or Buffer`);
-}
-
-export function base64decode(str : string) : string {
-    if (typeof atob === 'function') {
-        // $FlowFixMe[method-unbinding]
-        return decodeURIComponent(Array.prototype.map.call(atob(str), c => {
-            // eslint-disable-next-line prefer-template
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
-    }
-
-    if (typeof Buffer !== 'undefined') {
-        return Buffer.from(str, 'base64').toString('utf8');
-    }
-
-    throw new Error(`Can not find window.atob or Buffer`);
-}
-
-export function uniqueID() : string {
-
-    const chars = '0123456789abcdef';
-
-    const randomID = 'xxxxxxxxxx'.replace(/./g, () => {
-        return chars.charAt(Math.floor(Math.random() * chars.length));
-    });
-
-    const timeID = base64encode(
-        new Date().toISOString().slice(11, 19).replace('T', '.')
-    ).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-
-    return `uid_${ randomID }_${ timeID }`;
-}
-
-export function getGlobal() : Object {
-    if (typeof window !== 'undefined') {
-        return window;
-    }
-    if (typeof global !== 'undefined') {
-        return global;
-    }
-    if (typeof __GLOBAL__ !== 'undefined') {
-        return __GLOBAL__;
-    }
-    throw new Error(`No global found`);
-}
-
-let objectIDs;
-
-export function getObjectID(obj : Object) : string {
-
-    objectIDs = objectIDs || new WeakMap();
-
-    if (obj === null || obj === undefined || (typeof obj !== 'object' && typeof obj !== 'function')) {
-        throw new Error(`Invalid object`);
-    }
-
-    let uid = objectIDs.get(obj);
-
-    if (!uid) {
-        uid = `${ typeof obj }:${ uniqueID() }`;
-        objectIDs.set(obj, uid);
-    }
-
-    return uid;
-}
-
-function serializeArgs<T>(args : $ReadOnlyArray<T>) : string {
-    try {
-        // $FlowFixMe[method-unbinding]
-        return JSON.stringify(Array.prototype.slice.call(args), (subkey, val) => {
-
-            // Treat each distinct function as unique for purposes of memoization
-            // e.g. even if someFunction.stringify() is the same, we may use a different memoize cache
-            // if the actual function is different.
-            if (typeof val === 'function') {
-                return `memoize[${ getObjectID(val) }]`;
-            }
-
-            // Detect DOM elements
-            // By default JSON.stringify(domElement) returns '{}'. This ensures that stays true even for non-standard
-            // elements (e.g. React-rendered dom elements) with custom properties
-            if (
-                (typeof window !== 'undefined' && val instanceof window.Element) ||
-                (val !== null && typeof val === 'object' && val.nodeType === 1 && typeof val.style === 'object' && typeof val.ownerDocument === 'object')
-            ) {
-                return {};
-            }
-
-            return val;
-        });
-    } catch (err) {
-        throw new Error(`Arguments not serializable -- can not be used to memoize`);
-    }
-}
-
-export function getEmptyObject() : {||} {
-    // $FlowFixMe
-    return {};
-}
-
-type MemoizeOptions = {|
-    name? : string,
-    time? : number,
-    thisNamespace? : boolean
-|};
-
-const getDefaultMemoizeOptions = () : MemoizeOptions => {
-    // $FlowFixMe
-    return {};
-};
-
-export type Memoized<F> = F & {| reset : () => void |};
-
-let memoizeGlobalIndex = 0;
-let memoizeGlobalIndexValidFrom = 0;
-
-export function memoize<F : Function>(method : F, options? : MemoizeOptions = getDefaultMemoizeOptions()) : Memoized<F> {
-    const { thisNamespace = false, time: cacheTime } = options;
-
-    let simpleCache;
-    let thisCache;
-
-    let memoizeIndex = memoizeGlobalIndex;
-    memoizeGlobalIndex += 1;
-
-    const memoizedFunction = function memoizedFunction(...args) : mixed {
-        if (memoizeIndex < memoizeGlobalIndexValidFrom) {
-            simpleCache = null;
-            thisCache = null;
-            memoizeIndex = memoizeGlobalIndex;
-            memoizeGlobalIndex += 1;
-        }
-
-        let cache;
-
-        if (thisNamespace) {
-            thisCache = thisCache || new WeakMap();
-            cache = thisCache.getOrSet(this, getEmptyObject);
-        } else {
-            cache = simpleCache = simpleCache || {};
-        }
-
-        let cacheKey;
-
-        try {
-            cacheKey = serializeArgs(args);
-        } catch {
-            return method.apply(this, arguments);
-        }
-
-        let cacheResult = cache[cacheKey];
-
-        if (cacheResult && cacheTime && (Date.now() - cacheResult.time) < cacheTime) {
-            delete cache[cacheKey];
-            cacheResult = null;
-        }
-
-        if (cacheResult) {
-            return cacheResult.value;
-        }
-
-        const time  = Date.now();
-        const value = method.apply(this, arguments);
-
-        cache[cacheKey] = { time, value };
-
-        return value;
-    };
-
-    memoizedFunction.reset = () => {
-        simpleCache = null;
-        thisCache = null;
-    };
-
-    // $FlowFixMe
-    const result : F = memoizedFunction;
-
-    return setFunctionName(result, `${ options.name || getFunctionName(method) }::memoized`);
-}
-
-memoize.clear = () => {
-    memoizeGlobalIndexValidFrom = memoizeGlobalIndex;
-};
 
 export function promiseIdentity<T : mixed>(item : ZalgoPromise<T> | T) : ZalgoPromise<T> {
     // $FlowFixMe
     return ZalgoPromise.resolve(item);
 }
 
-// eslint-disable-next-line flowtype/no-weak-types
-export function memoizePromise<R>(method : (...args : $ReadOnlyArray<any>) => ZalgoPromise<R>) : ((...args : $ReadOnlyArray<any>) => ZalgoPromise<R>) {
-    let cache = {};
-
-    // eslint-disable-next-line flowtype/no-weak-types
-    function memoizedPromiseFunction(...args : $ReadOnlyArray<any>) : ZalgoPromise<R> {
-        const key : string = serializeArgs(args);
-
-        if (cache.hasOwnProperty(key)) {
-            return cache[key];
-        }
-
-        cache[key] = ZalgoPromise.try(() => method.apply(this, arguments))
-            .finally(() => {
-                delete cache[key];
-            });
-
-        return cache[key];
-    }
-
-    memoizedPromiseFunction.reset = () => {
-        cache = {};
-    };
-
-    return setFunctionName(memoizedPromiseFunction, `${ getFunctionName(method) }::promiseMemoized`);
-}
-
-type PromisifyOptions = {|
+  type PromisifyOptions = {|
     name ? : string
-|};
-
+  |};
+  
 const getDefaultPromisifyOptions = () : PromisifyOptions => {
     // $FlowFixMe
     return {};
 };
-
+  
 // eslint-disable-next-line flowtype/no-weak-types
 export function promisify<R>(method : (...args : $ReadOnlyArray<any>) => R, options : PromisifyOptions = getDefaultPromisifyOptions()) : ((...args : $ReadOnlyArray<any>) => ZalgoPromise<R>) {
     function promisifiedFunction() : ZalgoPromise<R> {
@@ -273,20 +35,6 @@ export function promisify<R>(method : (...args : $ReadOnlyArray<any>) => R, opti
     return setFunctionName(promisifiedFunction, `${ getFunctionName(method) }::promisified`);
 }
 
-// eslint-disable-next-line flowtype/no-weak-types
-export function inlineMemoize<R>(method : (...args : $ReadOnlyArray<any>) => R, logic : (...args : $ReadOnlyArray<any>) => R, args : $ReadOnlyArray<any> = []) : R {
-    // $FlowFixMe
-    const cache : {| [string] : R |} = method.__inline_memoize_cache__ = method.__inline_memoize_cache__ || {};
-    const key = serializeArgs(args);
-
-    if (cache.hasOwnProperty(key)) {
-        return cache[key];
-    }
-
-    const result = cache[key] = logic(...args);
-
-    return result;
-}
 
 // eslint-disable-next-line no-unused-vars
 export function noop(...args : $ReadOnlyArray<mixed>) {
@@ -453,58 +201,6 @@ export function domainMatches(hostname : string, domain : string) : boolean {
     return (index !== -1 && hostname.slice(index) === domain);
 }
 
-export function patchMethod(obj : Object, name : string, handler : Function) {
-    const original = obj[name];
-
-    obj[name] = function patchedMethod() : mixed {
-        return handler({
-            context:      this,
-            // $FlowFixMe[method-unbinding]
-            args:         Array.prototype.slice.call(arguments),
-            original,
-            callOriginal: () => original.apply(this, arguments)
-        });
-    };
-}
-
-export function extend<T : Object | Function>(obj : T, source : Object) : T {
-    if (!source) {
-        return obj;
-    }
-
-    if (Object.assign) {
-        return Object.assign(obj, source);
-    }
-
-    for (const key in source) {
-        if (source.hasOwnProperty(key)) {
-            obj[key] = source[key];
-        }
-    }
-
-    return obj;
-}
-
-export function values<T>(obj : { [string] : T }) : $ReadOnlyArray<T> {
-    if (Object.values) {
-        // $FlowFixMe
-        return Object.values(obj);
-    }
-
-    const result : Array<T> = [];
-    for (const key in obj) {
-        if (obj.hasOwnProperty(key)) {
-            // $FlowFixMe[escaped-generic]
-            result.push(obj[key]);
-        }
-    }
-
-    // $FlowFixMe
-    return result;
-}
-
-// eslint-disable-next-line no-undef
-export const memoizedValues : <T>({ [string] : T }) => $ReadOnlyArray<T> = memoize(values);
 
 export function perc(pixels : number, percentage : number) : number {
     return Math.round((pixels * percentage) / 100);
@@ -537,9 +233,6 @@ export function regexMap<T>(str : string, regexp : RegExp, handler : () => T) : 
     return results;
 }
 
-export function svgToBase64(svg : string) : string {
-    return `data:image/svg+xml;base64,${ base64encode(svg) }`;
-}
 
 export function objFilter<T, R>(obj : { [string] : T }, filter? : (T, ?string) => mixed = Boolean) : { [string] : R } {
     const result = {};
@@ -1196,9 +889,6 @@ export function unique(arr : $ReadOnlyArray<string>) : $ReadOnlyArray<string> {
     return Object.keys(result);
 }
 
-export const constHas = <X : (string | boolean | number), T : { [string] : X }>(constant : T, value : X) : boolean => {
-    return memoizedValues(constant).indexOf(value) !== -1;
-};
 
 export function dedupeErrors<T>(handler : (mixed) => T) : (mixed) => (T | void) {
     const seenErrors = [];

@@ -1,6 +1,17 @@
 /* @flow */
 
-import { getGlobal } from './util';
+export function getGlobal() : Object {
+    if (typeof window !== 'undefined') {
+        return window;
+    }
+    if (typeof global !== 'undefined') {
+        return global;
+    }
+    if (typeof __GLOBAL__ !== 'undefined') {
+        return __GLOBAL__;
+    }
+    throw new Error(`No global found`);
+}
 
 export function getGlobalNameSpace<T : Object>({ name, version = 'latest' } : {| name : string, version? : string |}) : {| get : (string, defValue? : T) => T |} {
 

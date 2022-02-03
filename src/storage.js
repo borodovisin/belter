@@ -1,7 +1,9 @@
 /* @flow */
 
-import { uniqueID, getGlobal, inlineMemoize } from './util';
 import { isLocalStorageEnabled } from './dom';
+import { getGlobal } from './global';
+import {  inlineMemoize } from './memoize';
+import { uniqueID } from './uniques';
 
 type Getter<T> = <T>(handler : (Object) => T) => T;
 

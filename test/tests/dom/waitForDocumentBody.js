@@ -1,7 +1,6 @@
 /* @flow */
 
-import { waitForDocumentBody } from '../../../src/dom';
-import { memoize } from '../../../src/util';
+import { waitForDocumentBody, memoize  } from '../../../src';
 
 describe('waitForDocumentBody cases', () => {
     // eslint-disable-next-line compat/compat

@@ -1,6 +1,6 @@
 /* @flow */
 
-import { experiment } from '../../src/experiment';
+import { experiment } from '../../src';
 
 describe('experiment', () => {
     beforeEach(() => {

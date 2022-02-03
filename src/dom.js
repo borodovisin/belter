@@ -5,8 +5,12 @@ import { linkFrameWindow, isWindowClosed, assertSameDomain,
     type SameDomainWindowType, type CrossDomainWindowType } from 'cross-domain-utils/src';
 import { WeakMap } from 'cross-domain-safe-weakmap/src';
 
-import { inlineMemoize, memoize, noop, stringify, capitalizeFirstLetter,
-    once, extend, safeInterval, uniqueID, arrayFrom, ExtendableError, strHashStr } from './util';
+import { base64encode } from './base64';
+import { extend } from './objects';
+import { inlineMemoize, memoize } from './memoize';
+import { uniqueID } from './uniques';
+import { noop, stringify, capitalizeFirstLetter,
+    once,  safeInterval,  arrayFrom, ExtendableError, strHashStr } from './util';
 import { isDevice } from './device';
 import { KEY_CODES, ATTRIBUTES, UID_HASH_LENGTH } from './constants';
 import type { CancelableType } from './types';
@@ -1278,4 +1282,8 @@ export function submitForm({ url, target, body, method = 'post' } : SubmitFormOp
     getBody().appendChild(form);
     form.submit();
     getBody().removeChild(form);
+}
+
+export function svgToBase64(svg : string) : string {
+    return `data:image/svg+xml;base64,${ base64encode(svg) }`;
 }

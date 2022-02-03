@@ -1,6 +1,6 @@
 /* @flow */
 
-import { getGlobalNameSpace } from '../../src/global';
+import { getGlobalNameSpace } from '../../src';
 
 describe('experiment', () => {
     it('should return the right value from the namespace', () => {

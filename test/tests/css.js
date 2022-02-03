@@ -8,7 +8,7 @@ import {
     toCSS,
     percOf,
     normalizeDimension
-} from '../../src/css';
+} from '../../src';
 
 describe('Css test cases', () => {
     it('should return false when given string', () => {

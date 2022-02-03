@@ -1,7 +1,7 @@
 
 /* @flow */
 
-import { isDefined } from '../../../src/util';
+import { isDefined } from '../../../src';
 
 describe('isDefined', () => {
     it('should return true when value is neither undefined nor null', () => {

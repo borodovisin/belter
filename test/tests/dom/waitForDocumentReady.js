@@ -1,7 +1,6 @@
 /* @flow */
 
-import { waitForDocumentReady } from '../../../src/dom';
-import { memoize } from '../../../src/util';
+import { waitForDocumentReady, memoize } from '../../../src';
 
 describe('waitForDocumentReady cases', () => {
     beforeEach(memoize.clear);

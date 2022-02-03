@@ -1,6 +1,6 @@
 /* @flow */
 
-import { waitForWindowReady } from '../../../src/dom';
+import { waitForWindowReady } from '../../../src';
 
 describe('waitForWindowReady function', () => {
     const oldState = document.readyState;
